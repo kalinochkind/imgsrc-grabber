@@ -23,18 +23,32 @@ class ImgsrcParser:
             url = self.host + url
         return url
 
+    def pass_preword(self, url):
+        d = self.g.go(url)
+        return d.tree.xpath('//center/table/tr[@align="center"]/td[@align="left"]/a')[0].get('href')
+
     def get_user_photos(self, url):
         d = self.g.go(url)
         elems = d.tree.xpath('//table/tr/td/a[@target="_top"]')
         for elem in elems:
-            name = elem.get('href').split('/')[-1].split('.')[0]
-            if not name.isalnum():
-                print('Bad name:', name)
+            album = self.normalize(elem.get('href'))
+
+            if '/preword.php' in album:
+                print('\nPreword', album, end='')
+                name = 'a' + album.split('=')[-1]
+                album = self.pass_preword(album)
+            else:
+                name = album.split('/')[-1].split('.')[0]
+            if '/passchk.php' in album:
+                print('\nLocked', album)
                 continue
-            print('\nAlbum', elem.get('href'))
+            if not name.isalnum():
+                print('\nBad name:', name)
+                continue
+            print('\nAlbum', album)
             if not os.path.isdir(self.workdir + name):
                 os.mkdir(self.workdir + name)
-            self.get_photos(elem.get('href'), self.workdir + name + os.path.sep)
+            self.get_photos(album, self.workdir + name + os.path.sep)
 
     def get_photos(self, url, workdir=None):
         if workdir is None:
