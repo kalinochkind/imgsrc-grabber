@@ -23,14 +23,29 @@ class ImgsrcParser:
             url = self.host + url
         return url
 
-    def get_photos(self, url):
+    def get_user_photos(self, url):
+        d = self.g.go(url)
+        elems = d.tree.xpath('//table/tr/td/a[@target="_top"]')
+        for elem in elems:
+            name = elem.get('href').split('/')[-1].split('.')[0]
+            if not name.isalnum():
+                print('Bad name:', name)
+                continue
+            print('\nAlbum', elem.get('href'))
+            if not os.path.isdir(self.workdir + name):
+                os.mkdir(self.workdir + name)
+            self.get_photos(elem.get('href'), self.workdir + name + os.path.sep)
+
+    def get_photos(self, url, workdir=None):
+        if workdir is None:
+            workdir = self.workdir
         res = []
         url = self.first_photo(url)
         while not '/user.php' in url:
             url = self.normalize(url)
             print('Visiting', url)
             d = self.g.go(url)
-            self.download_photo(self.get_photo_url(d.body.decode('utf-8')))
+            self.download_photo(self.get_photo_url(d.body.decode('utf-8')), workdir)
             url = d.tree.get_element_by_id('next_url').get('href')
         print('Finished')
 
@@ -58,10 +73,10 @@ class ImgsrcParser:
         url = 'http://b' + cdn + '.eu.icdn.ru/' + u[0] + '/' + u + '.jpg'
         return url
 
-    def download_photo(self, url):
+    def download_photo(self, url, saveto):
         print('Downloading', url)
         d = self.g.go(url)
-        filename = self.workdir + url.split('/')[-1]
+        filename = saveto + url.split('/')[-1]
         with open(filename, 'wb') as f:
             f.write(d.body)
 
@@ -75,7 +90,10 @@ def main():
         os.makedirs(wd)
     parser = ImgsrcParser(wd)
     url = input('Enter url: ')
-    parser.get_photos(url)
+    if '/user.php' in url:
+        parser.get_user_photos(url)
+    else:
+        parser.get_photos(url)
 
 
 if __name__ == '__main__':
