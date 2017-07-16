@@ -8,7 +8,8 @@ import grab
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r"i='(\d+)',h=(?:i\.charAt\((\d)\)\+)?'(\d)?\.([a-z]+)\.icdn\.ru',s='/',n='([^']{3})',u='([^']+)'")
+    photo_re1 = re.compile(r"i='(\d+)',h=(?:i\.charAt\((\d)\)\+)?'(\d)?\.([a-z]+)\.icdn\.ru',s='/',n='([^']{3})',u='([^']+)'")
+    photo_re2 = re.compile(r"id='pic_c' class='cur' src='http://.([^']+/)([^'/]+).{3}\.jpg'.*s='([^']+)'.*\+s.charAt\((\d)\)\+s.charAt\((\d)\)\+s.charAt\((\d)\);.*src='(http://.)'", re.DOTALL)
     prev_re = re.compile(r"\('left',function\(\) \{window\.location='([^']+)'")
     host = 'http://imgsrc.ru'
 
@@ -81,11 +82,17 @@ class ImgsrcParser:
         return url
 
     def get_photo_url(self, body):
-        res = self.photo_re.search(body)
-        u = res.group(6) + res.group(1) + res.group(5)[1] + res.group(5)[2] + res.group(5)[0]
-        cdn = res.group(3) or res.group(1)[int(res.group(2))]
-        url = 'http://b' + cdn + '.' + res.group(4) + '.icdn.ru/' + u[0] + '/' + u + '.jpg'
-        return url
+        res = self.photo_re1.search(body)
+        if res:
+            u = res.group(6) + res.group(1) + res.group(5)[1] + res.group(5)[2] + res.group(5)[0]
+            cdn = res.group(3) or res.group(1)[int(res.group(2))]
+            url = 'http://b' + cdn + '.' + res.group(4) + '.icdn.ru/' + u[0] + '/' + u + '.jpg'
+            return url
+        else:
+            res = self.photo_re2.search(body)
+            u = res.group(2) + res.group(3)[int(res.group(4))] + res.group(3)[int(res.group(5))] + res.group(3)[int(res.group(6))]
+            url = res.group(7) + res.group(1) + 'imgsrc.ru_' + u + '.jpg'
+            return url
 
     def download_photo(self, url, saveto):
         print('Downloading', url)
