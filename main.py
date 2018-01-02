@@ -4,19 +4,56 @@ import sys
 import os
 import re
 import grab
+import time
 
+
+def eval_js(val, variables):
+    evaluated = []
+    for i in val:
+        if i.startswith("'"):
+            evaluated.append(i[1:-1])
+        elif i == ("document.getElementById('prc').src"):
+            evaluated.append(variables['_url'])
+        elif '.lastIndexOf' in i:
+            varname = i.split('.')[0]
+            substr = i.split("'")[1]
+            evaluated.append(variables[varname].rfind(substr))
+        elif '.indexOf' in i:
+            varname = i.split('.')[0]
+            substr = i.split("'")[1]
+            evaluated.append(variables[varname].find(substr))
+        elif '.slice' in i:
+            varname = i.split('.')[0]
+            bounds = [variables[j] if j.isalpha() else int(j) for j in i.split('(')[1].split(')')[0].split(',')]
+            evaluated.append(variables[varname][bounds[0]:bounds[1]])
+        elif '.charAt' in i:
+            varname = i.split('.')[0]
+            idx = i.split('(')[1].split(')')[0]
+            idx = variables[idx] if idx.isalpha() else int(idx)
+            evaluated.append(variables[varname][idx])
+        elif i.isalpha():
+            evaluated.append(variables[i])
+        else:
+            evaluated.append(int(i))
+    if isinstance(evaluated[0], str):
+        return ''.join(evaluated)
+    else:
+        return sum(evaluated)
 
 class ImgsrcParser:
 
-    photo_re1 = re.compile(r"i='(\d+)',h=(?:i\.charAt\((\d)\)\+)?'(\d)?\.([a-z]+)\.icdn\.ru',s='/',n='([^']{3})',u='([^']+)'")
-    photo_re2 = re.compile(r"id='pic_c' class='cur' src='http://.([^']+/)([^'/]+).{3}\.jpg'.*s='([^']+)'.*\+s.charAt\((\d)\)\+s.charAt\((\d)\)\+s.charAt\((\d)\);.*src='(http://.)'", re.DOTALL)
+    photo_re = re.compile(r"id='prc' class='cur' src='(http://[^']+)'")
+    photo_js_re = re.compile(r"var ((?:[a-z]+=[^;]*)+);", re.DOTALL)
+    photo_result_re = re.compile(r"getElementById\('bip'\)\.src=([^;]+);")
+    iamlegal_re = re.compile(r"<a href='(/main/warn.php\?[^']+)'>")
     prev_re = re.compile(r"\('left',function\(\) \{window\.location='([^']+)'")
     host = 'http://imgsrc.ru'
 
     def __init__(self, workdir):
         self.workdir = workdir.rstrip(os.path.sep) + os.path.sep
         self.g = grab.Grab()
-        self.g.cookies.set('iamlegal', 'yeah', 'imgsrc.ru')
+        self.g.cookies.set(name='iamlegal', value='yeah', domain='.imgsrc.ru', path='/', expires=time.time()+3600*24)
+        self.g.go(self.host)
 
     def normalize(self, url):
         url = url.split('#')[0]
@@ -26,7 +63,13 @@ class ImgsrcParser:
 
     def pass_preword(self, url):
         d = self.g.go(url)
-        return d.tree.xpath('//center/table/tr[@align="center"]/td[@align="left"]/a')[0].get('href')
+        body = d.body.decode('utf-8')
+        legal = self.iamlegal_re.search(body)
+        if legal:
+            url = legal.group(1)
+            print('\nIamlegal', url, end='')
+            d = self.g.go(url)
+        return d.tree.xpath('//center//table/tr[@align="center"]/td[@align="left"]/form')[0].get('action')
 
     def get_user_photos(self, url):
         d = self.g.go(url)
@@ -74,25 +117,22 @@ class ImgsrcParser:
             print('Previous page:', res)
             url = res
         d = self.g.go(url)
-        images = d.tree.xpath('//center/table/tr[@align="center"]/td//img')
+        images = d.tree.xpath('//center//table/tr[@align="center"]/td//img')
         if images[0].get('class') != 'cur':
-            ref = d.tree.xpath('//center/table/tr[@align="center"]/td/a')[0]
+            ref = d.tree.xpath('//center//table/tr[@align="center"]/td/a')[0]
             url = ref.get('href')
             print('First photo:', url)
         return url
 
     def get_photo_url(self, body):
-        res = self.photo_re1.search(body)
-        if res:
-            u = res.group(6) + res.group(1) + res.group(5)[1] + res.group(5)[2] + res.group(5)[0]
-            cdn = res.group(3) or res.group(1)[int(res.group(2))]
-            url = 'http://b' + cdn + '.' + res.group(4) + '.icdn.ru/' + u[0] + '/' + u + '.jpg'
-            return url
-        else:
-            res = self.photo_re2.search(body)
-            u = res.group(2) + res.group(3)[int(res.group(4))] + res.group(3)[int(res.group(5))] + res.group(3)[int(res.group(6))]
-            url = res.group(7) + res.group(1) + 'imgsrc.ru_' + u + '.jpg'
-            return url
+        js = [i.rstrip(',') for i in sum([x.splitlines() for x in self.photo_js_re.findall(body)], [])]
+        answer = self.photo_result_re.search(body).group(1)
+        variables = {'_url': self.photo_re.search(body).group(1)}
+        for cmd in js:
+            name, val = cmd.split('=')
+            val = val.replace('-', '+-').split('+')
+            variables[name] = eval_js(val, variables)
+        return eval_js(answer.replace('-', '+-').split('+'), variables)
 
     def download_photo(self, url, saveto):
         print('Downloading', url)
