@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -149,15 +149,25 @@ class ImgsrcParser:
             f.write(d.body)
 
 
+def get_args(args):
+    wd = url = None
+    for i in args:
+        if i.startswith('http://') or i.startswith('https://'):
+            if not url:
+                url = i
+        elif not wd:
+            wd = i
+    while not url:
+        url = input('Enter url: ')
+    while not wd:
+        wd = input('Where to save: ')
+    return wd, url
+
 def main():
-    if len(sys.argv) > 1:
-        wd = sys.argv[1]
-    else:
-        wd = '.'
+    wd, url = get_args(sys.argv[1:])
     if not os.path.isdir(wd):
         os.makedirs(wd)
     parser = ImgsrcParser(wd)
-    url = input('Enter url: ')
     if '/user.php' in url:
         parser.get_user_photos(url)
     else:
