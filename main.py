@@ -7,6 +7,13 @@ import grab
 import time
 
 
+def get_argument(s, variables):
+    arg = s.split('(')[1].split(')')[0]
+    if "'" in arg:
+        return arg.strip("'")
+    else:
+        return variables[arg]
+
 def eval_js(val, variables):
     evaluated = []
     for i in val:
@@ -16,11 +23,11 @@ def eval_js(val, variables):
             evaluated.append(variables['_url'])
         elif '.lastIndexOf' in i:
             varname = i.split('.')[0]
-            substr = i.split("'")[1]
+            substr = get_argument(i, variables)
             evaluated.append(variables[varname].rfind(substr))
         elif '.indexOf' in i:
             varname = i.split('.')[0]
-            substr = i.split("'")[1]
+            substr = get_argument(i, variables)
             evaluated.append(variables[varname].find(substr))
         elif '.slice' in i:
             varname = i.split('.')[0]
