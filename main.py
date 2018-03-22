@@ -118,7 +118,13 @@ class ImgsrcParser:
         while True:
             url = self.normalize(url)
             d = self.g.go(url)
-            res = self.prev_re.search(d.body.decode('utf-8')).group(1)
+            res = self.prev_re.search(d.body.decode('utf-8'))
+            if not res:
+                url = self.pass_preword(url)
+                if not url:
+                    return None
+                continue
+            res = res.group(1)
             if '/user.php' in res:
                 break
             print('Previous page:', res)
