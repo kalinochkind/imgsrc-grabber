@@ -19,7 +19,7 @@ def eval_js(val, variables):
     for i in val:
         if i.startswith("'"):
             evaluated.append(i[1:-1])
-        elif i == ("document.getElementById('prc').src"):
+        elif i.startswith('document.getElementById('):
             evaluated.append(variables['_url'])
         elif '.lastIndexOf' in i:
             varname = i.split('.')[0]
@@ -38,6 +38,12 @@ def eval_js(val, variables):
             idx = i.split('(')[1].split(')')[0]
             idx = variables[idx] if idx.isalpha() else int(idx)
             evaluated.append(variables[varname][idx])
+        elif '[' in i:
+            varname = i.split('[')[0]
+            idx = i.split('[')[1].rstrip(']')
+            if idx.isalpha():
+                idx = variables[idx]
+            evaluated.append(variables[varname][int(idx)])
         elif i.isalpha():
             evaluated.append(variables[i])
         else:
@@ -49,7 +55,7 @@ def eval_js(val, variables):
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r"id='prc' class='cur' src='(http://[^']+)'")
+    photo_re = re.compile(r"id='[a-zA-Z]+' class='cur' src='(http://[^']+)'")
     photo_js_re = re.compile(r"var ((?:[a-z]+=[^;]*)+);", re.DOTALL)
     photo_result_re = re.compile(r"getElementById\('bip'\)\.src=([^;]+);")
     iamlegal_re = re.compile(r"<a href='(/main/warn.php\?[^']+)'>")
@@ -106,6 +112,8 @@ class ImgsrcParser:
             workdir = self.workdir
         res = []
         url = self.first_photo(url)
+        with open(workdir + '.imgsrc', 'w') as f:
+            print(url, file=f)
         while not '/user.php' in url:
             url = self.normalize(url)
             print('Visiting', url)
@@ -139,6 +147,7 @@ class ImgsrcParser:
 
     def get_photo_url(self, body):
         js = [i.rstrip(',') for i in sum([x.splitlines() for x in self.photo_js_re.findall(body)], [])]
+        js = sum([i.split(', ') for i in js], [])
         answer = self.photo_result_re.search(body).group(1)
         variables = {'_url': self.photo_re.search(body).group(1)}
         for cmd in js:
