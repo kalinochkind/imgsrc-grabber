@@ -31,12 +31,12 @@ def eval_js(val, variables):
             evaluated.append(variables[varname].find(substr))
         elif '.slice' in i:
             varname = i.split('.')[0]
-            bounds = [variables[j] if j.isalpha() else int(j) for j in i.split('(')[1].split(')')[0].split(',')]
+            bounds = [exec_js(j, variables) for j in i.split('(')[1].split(')')[0].split(',')]
             evaluated.append(variables[varname][bounds[0]:bounds[1]])
         elif '.charAt' in i:
             varname = i.split('.')[0]
             idx = i.split('(')[1].split(')')[0]
-            idx = variables[idx] if idx.isalpha() else int(idx)
+            idx = exec_js(idx, variables)
             evaluated.append(variables[varname][idx])
         elif '[' in i:
             varname = i.split('[')[0]
@@ -53,11 +53,21 @@ def eval_js(val, variables):
     else:
         return sum(evaluated)
 
+def exec_js(val, variables):
+    val = val.replace('-', '+-').split('+')
+    l = []
+    for i in val:
+        if l and l[-1].count('(') > l[-1].count(')'):
+            l[-1] += '+' + i
+        else:
+            l.append(i)
+    return eval_js(l, variables)
+
 class ImgsrcParser:
 
-    photo_re = re.compile(r"id='[a-zA-Z]+' class='cur' src='(http://[^']+)'")
+    photo_re = re.compile(r" class='cur' src='(http://[^']+)'")
     photo_js_re = re.compile(r"var ((?:[a-z]+=[^;]*)+);", re.DOTALL)
-    photo_result_re = re.compile(r"getElementById\('bip'\)\.src=([^;]+);")
+    photo_result_re = re.compile(r"getElementById\([^)]+\)\.src=([^;]+);")
     iamlegal_re = re.compile(r"<a href='(/main/warn.php\?[^']+)'>")
     prev_re = re.compile(r"\('left',function\(\) \{window\.location='([^']+)'")
     host = 'http://imgsrc.ru'
@@ -152,8 +162,8 @@ class ImgsrcParser:
         variables = {'_url': self.photo_re.search(body).group(1)}
         for cmd in js:
             name, val = cmd.split('=')
-            val = val.replace('-', '+-').split('+')
-            variables[name] = eval_js(val, variables)
+            result = exec_js(val, variables)
+            variables[name] = result
         return eval_js(answer.replace('-', '+-').split('+'), variables)
 
     def download_photo(self, url, saveto):
