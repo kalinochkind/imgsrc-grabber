@@ -11,6 +11,8 @@ def get_argument(s, variables):
     arg = s.split('(')[1].split(')')[0]
     if "'" in arg:
         return arg.strip("'")
+    elif arg.isdigit():
+        return int(arg)
     else:
         return variables[arg]
 
@@ -46,6 +48,9 @@ def eval_js(val, variables):
             evaluated.append(variables[varname][int(idx)])
         elif i.isalpha():
             evaluated.append(variables[i])
+        elif i.startswith('String.fromCharCode('):
+            num = get_argument(i, variables)
+            evaluated.append(chr(num))
         else:
             evaluated.append(int(i))
     if isinstance(evaluated[0], str):
@@ -65,7 +70,7 @@ def exec_js(val, variables):
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r" class='cur' src='(http://[^']+)'")
+    photo_re = re.compile(r" class='cur' src='(https?://[^']+)'")
     photo_js_re = re.compile(r"var ((?:[a-z]+=[^;]*)+);", re.DOTALL)
     photo_result_re = re.compile(r"getElementById\([^)]+\)\.src=([^;]+);")
     iamlegal_re = re.compile(r"<a href='(/main/warn.php\?[^']+)'>")
