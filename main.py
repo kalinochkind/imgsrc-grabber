@@ -13,8 +13,10 @@ def get_argument(s, variables):
         return arg.strip("'")
     elif arg.isdigit():
         return int(arg)
-    else:
+    elif arg in variables:
         return variables[arg]
+    else:
+        return exec_js(arg, variables)
 
 def eval_js(val, variables):
     evaluated = []
@@ -59,7 +61,7 @@ def eval_js(val, variables):
         return sum(evaluated)
 
 def exec_js(val, variables):
-    val = val.replace('-', '+-').split('+')
+    val = list(filter(bool, val.replace('-', '+-').split('+')))
     l = []
     for i in val:
         if l and l[-1].count('(') > l[-1].count(')'):
