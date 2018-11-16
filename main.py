@@ -50,7 +50,7 @@ def eval_js(val, variables):
             evaluated.append(variables[varname][int(idx)])
         elif i.isalpha():
             evaluated.append(variables[i])
-        elif i.startswith('String.fromCharCode('):
+        elif i.startswith('String.fromCharCode(') or i.startswith('String.fromCodePoint('):
             num = get_argument(i, variables)
             evaluated.append(chr(num))
         else:
@@ -73,8 +73,9 @@ def exec_js(val, variables):
 class ImgsrcParser:
 
     photo_re = re.compile(r" class='cur' src='(https?://[^']+)'")
+    photo_re = re.compile(r"<a href='#bp'><img src='(https?://[^']+)' id=")
     photo_js_re = re.compile(r"var ((?:[a-z]+=[^;]*)+);", re.DOTALL)
-    photo_result_re = re.compile(r"getElementById\([^)]+\)\.src=([^;]+);")
+    photo_result_re = re.compile(r"^[a-z]\.src=([^;]+);", re.MULTILINE)
     iamlegal_re = re.compile(r"<a href='(/main/warn.php\?[^']+)'>")
     prev_re = re.compile(r"\('left',function\(\) \{window\.location='([^']+)'")
     host = 'http://imgsrc.ru'
@@ -155,9 +156,9 @@ class ImgsrcParser:
             print('Previous page:', res)
             url = res
         d = self.g.go(url)
-        images = d.tree.xpath('//center//table/tr[@align="center"]/td//img')
-        if images[0].get('class') != 'cur':
-            ref = d.tree.xpath('//center//table/tr[@align="center"]/td/a')[0]
+        images = d.tree.xpath('//table[@class="pret"]//tr/td')
+        if images[0].get('class') != 'curt':
+            ref = d.tree.xpath('//table[@class="pret"]//tr/td//a')[0]
             url = ref.get('href')
             print('First photo:', url)
         return url
