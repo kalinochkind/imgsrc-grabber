@@ -100,13 +100,15 @@ class ImgsrcParser:
             url = legal.group(1)
             print('\nIamlegal', url, end='')
             d = self.g.go(url)
-        return d.tree.xpath('//center//table/tr[@align="center"]/td[@align="left"]/form')[0].get('action')
+        return d.tree.xpath('//table/tr[@align="center"]/td[@align="left"]/form')[0].get('action')
 
     def get_user_photos(self, url):
         d = self.g.go(url)
         elems = d.tree.xpath('//table/tr/td/a[@target="_top"]')
         for elem in elems:
             album = self.normalize(elem.get('href'))
+            if '/main/' in album:
+                continue
 
             if '/preword.php' in album:
                 print('\nPreword', album, end='')
