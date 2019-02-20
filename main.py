@@ -90,7 +90,7 @@ class ImgsrcParser:
         url = url.split('#')[0]
         if url.startswith('/'):
             url = self.host + url
-        return url
+        return url.rstrip('?')
 
     def pass_preword(self, url):
         d = self.g.go(url)
@@ -132,6 +132,8 @@ class ImgsrcParser:
             workdir = self.workdir
         res = []
         url = self.first_photo(url)
+        if not url:
+            return
         with open(workdir + '.imgsrc', 'w') as f:
             print(url, file=f)
         while not '/user.php' in url:
@@ -146,6 +148,9 @@ class ImgsrcParser:
         while True:
             url = self.normalize(url)
             d = self.g.go(url)
+            if d.code in (404, 410):
+                print('Not found')
+                return None
             res = self.prev_re.search(d.body.decode('utf-8'))
             if not res:
                 url = self.pass_preword(url)
@@ -177,9 +182,12 @@ class ImgsrcParser:
         return eval_js(answer.replace('-', '+-').split('+'), variables)
 
     def download_photo(self, url, saveto):
+        filename = saveto + url.split('/')[-1]
+        if os.path.isfile(filename):
+            print('Skipping', url)
+            return
         print('Downloading', url)
         d = self.g.go(url)
-        filename = saveto + url.split('/')[-1]
         with open(filename, 'wb') as f:
             f.write(d.body)
 
@@ -187,7 +195,7 @@ class ImgsrcParser:
 def get_args(args):
     wd = url = None
     for i in args:
-        if i.startswith('http://') or i.startswith('https://'):
+        if i.startswith('http://') or i.startswith('https://') or i == '-u':
             if not url:
                 url = i
         elif not wd:
@@ -198,10 +206,24 @@ def get_args(args):
         wd = input('Where to save: ')
     return wd, url
 
+
+def update_photos(wd):
+    for root, dirs, files in os.walk(wd):
+        if '.imgsrc' not in files:
+            continue
+        with open(os.path.join(root, '.imgsrc')) as f:
+            url = f.read().strip()
+        print('\nFound {} ({})'.format(root, url))
+        ImgsrcParser(root).get_photos(url)
+
+
 def main():
     wd, url = get_args(sys.argv[1:])
     if not os.path.isdir(wd):
         os.makedirs(wd)
+    if url == '-u':
+        update_photos(wd)
+        return
     parser = ImgsrcParser(wd)
     if '/user.php' in url:
         parser.get_user_photos(url)
