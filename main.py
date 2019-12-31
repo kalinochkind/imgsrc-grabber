@@ -53,10 +53,13 @@ def eval_js(val, variables):
         elif i.startswith('String.fromCharCode(') or i.startswith('String.fromCodePoint('):
             num = get_argument(i, variables)
             evaluated.append(chr(num))
+        elif '/' in i:
+            a, b = i.split('/')
+            evaluated.append(int(a) // int(b))
         else:
             evaluated.append(int(i))
     if isinstance(evaluated[0], str):
-        return ''.join(evaluated)
+        return ''.join(map(str, evaluated))
     else:
         return sum(evaluated)
 
@@ -72,9 +75,9 @@ def exec_js(val, variables):
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r" class='cur' src='(https?://[^']+)'")
-    photo_re = re.compile(r"<a href='#bp'><img src='(https?://[^']+)' id=")
-    photo_js_re = re.compile(r"var ((?:[a-z]+=[^;]*)+);", re.DOTALL)
+    photo_re = re.compile(r"<a href='#bp'><img src='(//[^']+)' class='prev'></a>")
+    #<td class='pret curt'><a href='#bp'><img src='//s7.ru.icdn.ru/f/freshcuteness/0/imgsrc.ru_66302660SgP.jpg' class='prev'></a></td>
+    photo_js_re = re.compile(r"^(?:var )?((?:[a-z]+=[^;]*)+);", re.DOTALL | re.MULTILINE)
     photo_result_re = re.compile(r"^[a-z]\.src=([^;]+);", re.MULTILINE)
     iamlegal_re = re.compile(r"<a href='(/main/warn.php\?[^']+)'>")
     prev_re = re.compile(r"\('left',function\(\) \{window\.location='([^']+)'")
@@ -100,26 +103,33 @@ class ImgsrcParser:
             url = legal.group(1)
             print('\nIamlegal', url, end='')
             d = self.g.go(url)
-        return d.tree.xpath('//table/tr[@align="center"]/td[@align="left"]/form')[0].get('action')
+        try:
+            return d.tree.xpath('//table/tr[@align="center"]/td[@align="left"]/form')[0].get('action')
+        except IndexError:
+            print('\nBlocked')
+            return None
 
     def get_user_photos(self, url):
         d = self.g.go(url)
-        elems = d.tree.xpath('//table/tr/td/a[@target="_top"]')
+        elems = d.tree.xpath('//table/tr/td/a[@target="_blank"]')
         for elem in elems:
             album = self.normalize(elem.get('href'))
-            if '/main/' in album:
+            if '/main/' in album or '/members/' in album:
                 continue
 
             if '/preword.php' in album:
                 print('\nPreword', album, end='')
                 name = 'a' + album.split('=')[-1]
                 album = self.pass_preword(album)
+                if album is None:
+                    continue
             else:
                 name = album.split('/')[-1].split('.')[0]
             if '/passchk.php' in album:
                 print('\nLocked', album)
                 continue
             if not name.isalnum():
+                print(album)
                 print('\nBad name:', name)
                 continue
             print('\nAlbum', album)
@@ -163,9 +173,9 @@ class ImgsrcParser:
             print('Previous page:', res)
             url = res
         d = self.g.go(url)
-        images = d.tree.xpath('//table[@class="pret"]//tr/td')
+        images = d.tree.xpath('//table[@id="preview_table"]//tr/td')
         if images[0].get('class') != 'curt':
-            ref = d.tree.xpath('//table[@class="pret"]//tr/td//a')[0]
+            ref = d.tree.xpath('//table[@id="preview_table"]//tr/td//a')[0]
             url = ref.get('href')
             print('First photo:', url)
         return url
@@ -176,6 +186,8 @@ class ImgsrcParser:
         answer = self.photo_result_re.search(body).group(1)
         variables = {'_url': self.photo_re.search(body).group(1)}
         for cmd in js:
+            if 'new Image(' in cmd:
+                continue
             name, val = cmd.split('=')
             result = exec_js(val, variables)
             variables[name] = result
