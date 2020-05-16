@@ -75,7 +75,7 @@ def exec_js(val, variables):
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r"<a href='#bp'><img src='(//[^']+)' class='prev'></a>")
+    photo_re = re.compile(r"<a href='#bp'><img class='prev' src='(//[^']+)'></a>")
     #<td class='pret curt'><a href='#bp'><img src='//s7.ru.icdn.ru/f/freshcuteness/0/imgsrc.ru_66302660SgP.jpg' class='prev'></a></td>
     photo_js_re = re.compile(r"^(?:var )?((?:[a-z]+=[^;]*)+);", re.DOTALL | re.MULTILINE)
     photo_result_re = re.compile(r"^[a-z]\.src=([^;]+);", re.MULTILINE)
@@ -86,7 +86,7 @@ class ImgsrcParser:
     def __init__(self, workdir):
         self.workdir = workdir.rstrip(os.path.sep) + os.path.sep
         self.g = grab.Grab()
-        self.g.cookies.set(name='iamlegal', value='yeah', domain='.imgsrc.ru', path='/', expires=time.time()+3600*24)
+        self.g.cookies.set(name='over18', value='yeah', domain='.imgsrc.ru', path='/', expires=time.time()+3600*24)
         self.g.go(self.host)
 
     def normalize(self, url):
@@ -104,7 +104,7 @@ class ImgsrcParser:
             print('\nIamlegal', url, end='')
             d = self.g.go(url)
         try:
-            return d.tree.xpath('//table/tr[@align="center"]/td[@align="left"]/form')[0].get('action')
+            return d.tree.xpath('//table//form[@method="get"]')[0].get('action')
         except IndexError:
             print('\nBlocked')
             return None
@@ -176,7 +176,9 @@ class ImgsrcParser:
         images = d.tree.xpath('//table[@id="preview_table"]//tr/td')
         if images[0].get('class') != 'curt':
             ref = d.tree.xpath('//table[@id="preview_table"]//tr/td//a')[0]
-            url = ref.get('href')
+            fp_url = ref.get('href')
+            if not fp_url.startswith('#'):
+                url = fp_url
             print('First photo:', url)
         return url
 
