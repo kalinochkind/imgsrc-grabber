@@ -83,11 +83,22 @@ class ImgsrcParser:
     prev_re = re.compile(r"\('left',function\(\) \{window\.location='([^']+)'")
     host = 'http://imgsrc.ru'
 
+    visited = set()
+
     def __init__(self, workdir):
         self.workdir = workdir.rstrip(os.path.sep) + os.path.sep
         self.g = grab.Grab()
         self.g.cookies.set(name='over18', value='yeah', domain='.imgsrc.ru', path='/', expires=time.time()+3600*24)
-        self.g.go(self.host)
+        for i in range(3):
+            try:
+                self.g.go(self.host)
+            except grab.error.GrabError:
+                time.sleep(1)
+            else:
+                break
+        else:
+            print('Something bad happened')
+            sys.exit(1)
 
     def normalize(self, url):
         url = url.split('#')[0]
@@ -112,6 +123,8 @@ class ImgsrcParser:
     def get_user_photos(self, url):
         d = self.g.go(url)
         elems = d.tree.xpath('//table/tr/td/a[@target="_blank"]')
+        with open(self.workdir + '.imgsrc', 'w') as f:
+            print(url, file=f)
         for elem in elems:
             album = self.normalize(elem.get('href'))
             if '/main/' in album or '/members/' in album:
@@ -138,6 +151,11 @@ class ImgsrcParser:
             self.get_photos(album, self.workdir + name + os.path.sep)
 
     def get_photos(self, url, workdir=None):
+        print(url)
+        if url in self.visited:
+            print('Already processed')
+            return
+        self.visited.add(url)
         if workdir is None:
             workdir = self.workdir
         res = []
@@ -206,6 +224,13 @@ class ImgsrcParser:
             f.write(d.body)
 
 
+    def get_photos_from_url(self, url):
+        if '/user.php' in url:
+            self.get_user_photos(url)
+        else:
+            self.get_photos(url)
+
+
 def get_args(args):
     wd = url = None
     for i in args:
@@ -228,7 +253,7 @@ def update_photos(wd):
         with open(os.path.join(root, '.imgsrc')) as f:
             url = f.read().strip()
         print('\nFound {} ({})'.format(root, url))
-        ImgsrcParser(root).get_photos(url)
+        ImgsrcParser(root).get_photos_from_url(url)
 
 
 def main():
@@ -239,10 +264,7 @@ def main():
         update_photos(wd)
         return
     parser = ImgsrcParser(wd)
-    if '/user.php' in url:
-        parser.get_user_photos(url)
-    else:
-        parser.get_photos(url)
+    parser.get_photos_from_url(url)
 
 
 if __name__ == '__main__':
