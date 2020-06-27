@@ -75,7 +75,7 @@ def exec_js(val, variables):
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r"<a href='#bp'><img class='prev' src='(//[^']+)'></a>")
+    photo_re = re.compile(r"<a href='#bp'><img class='prev' src='(//[^']+)'(?: alt='')></a>")
     #<td class='pret curt'><a href='#bp'><img src='//s7.ru.icdn.ru/f/freshcuteness/0/imgsrc.ru_66302660SgP.jpg' class='prev'></a></td>
     photo_js_re = re.compile(r"^(?:var )?((?:[a-z]+=[^;]*)+);", re.DOTALL | re.MULTILINE)
     photo_result_re = re.compile(r"^[a-z]\.src=([^;]+);", re.MULTILINE)
