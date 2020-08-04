@@ -75,7 +75,7 @@ def exec_js(val, variables):
 
 class ImgsrcParser:
 
-    photo_re = re.compile(r"<a href='#bp'><img class='prev' src='(//[^']+)'(?: alt='')></a>")
+    photo_re = re.compile(r"<a href='#bp'><img class='prev' src='(//[^']+)'(?: alt='')?></a>")
     #<td class='pret curt'><a href='#bp'><img src='//s7.ru.icdn.ru/f/freshcuteness/0/imgsrc.ru_66302660SgP.jpg' class='prev'></a></td>
     photo_js_re = re.compile(r"^(?:var )?((?:[a-z]+=[^;]*)+);", re.DOTALL | re.MULTILINE)
     photo_result_re = re.compile(r"^[a-z]\.src=([^;]+);", re.MULTILINE)
@@ -85,13 +85,10 @@ class ImgsrcParser:
 
     visited = set()
 
-    def __init__(self, workdir):
-        self.workdir = workdir.rstrip(os.path.sep) + os.path.sep
-        self.g = grab.Grab()
-        self.g.cookies.set(name='over18', value='yeah', domain='.imgsrc.ru', path='/', expires=time.time()+3600*24)
-        for i in range(3):
+    def go(self, url):
+        for i in range(5):
             try:
-                self.g.go(self.host)
+                return self.g.go(url)
             except grab.error.GrabError:
                 time.sleep(1)
             else:
@@ -100,6 +97,12 @@ class ImgsrcParser:
             print('Something bad happened')
             sys.exit(1)
 
+    def __init__(self, workdir):
+        self.workdir = workdir.rstrip(os.path.sep) + os.path.sep
+        self.g = grab.Grab()
+        self.g.cookies.set(name='over18', value='yeah', domain='.imgsrc.ru', path='/', expires=time.time()+3600*24)
+        self.go(self.host)
+
     def normalize(self, url):
         url = url.split('#')[0]
         if url.startswith('/'):
@@ -107,13 +110,13 @@ class ImgsrcParser:
         return url.rstrip('?')
 
     def pass_preword(self, url):
-        d = self.g.go(url)
+        d = self.go(url)
         body = d.body.decode('utf-8')
         legal = self.iamlegal_re.search(body)
         if legal:
             url = legal.group(1)
             print('\nIamlegal', url, end='')
-            d = self.g.go(url)
+            d = self.go(url)
         try:
             return d.tree.xpath('//table//form[@method="get"]')[0].get('action')
         except IndexError:
@@ -121,7 +124,7 @@ class ImgsrcParser:
             return None
 
     def get_user_photos(self, url):
-        d = self.g.go(url)
+        d = self.go(url)
         elems = d.tree.xpath('//table/tr/td/a[@target="_blank"]')
         with open(self.workdir + '.imgsrc', 'w') as f:
             print(url, file=f)
@@ -167,7 +170,7 @@ class ImgsrcParser:
         while not '/user.php' in url:
             url = self.normalize(url)
             print('Visiting', url)
-            d = self.g.go(url)
+            d = self.go(url)
             self.download_photo(self.get_photo_url(d.body.decode('utf-8')), workdir)
             url = d.tree.get_element_by_id('next_url').get('href')
         print('Finished')
@@ -175,7 +178,7 @@ class ImgsrcParser:
     def first_photo(self, url):
         while True:
             url = self.normalize(url)
-            d = self.g.go(url)
+            d = self.go(url)
             if d.code in (404, 410):
                 print('Not found')
                 return None
@@ -190,7 +193,7 @@ class ImgsrcParser:
                 break
             print('Previous page:', res)
             url = res
-        d = self.g.go(url)
+        d = self.go(url)
         images = d.tree.xpath('//table[@id="preview_table"]//tr/td')
         if images[0].get('class') != 'curt':
             ref = d.tree.xpath('//table[@id="preview_table"]//tr/td//a')[0]
@@ -219,7 +222,7 @@ class ImgsrcParser:
             print('Skipping', url)
             return
         print('Downloading', url)
-        d = self.g.go(url)
+        d = self.go(url)
         with open(filename, 'wb') as f:
             f.write(d.body)
 
